@@ -1,1 +1,1 @@
-# inclinaci-n-pol-tica
+# inclinacion politica
