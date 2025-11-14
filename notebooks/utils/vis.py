@@ -31,15 +31,17 @@ def mae_por_class(y_true, y_pred):
     return results
 
 
+
 def plot_1d_predictions(
     y_pred,
     true_labels,
-    colors={"L": "blue", "C": "green", "R": "red"},
+    colors={"L": "red", "C": "green", "R": "blue"},
     figsize=(10, 5),
     alpha=0.6,
     s=45,
     thresholds=(-0.33, 0, 0.33),
-    title="Predicciones de ideología (1D) coloreadas por clase real"
+    title="Predicciones de ideología (1D) coloreadas por clase real",
+    ax=None,
 ):
     """
     Produce un scatter 1D de predicciones continuas, coloreado por clase real.
@@ -48,20 +50,25 @@ def plot_1d_predictions(
     - y_pred: array-like de predicciones continuas
     - true_labels: array-like de etiquetas reales ("L", "C", "R")
     - colors: dict opcional {"L": color, "C": color, "R": color}
-    - figsize: tamaño de la figura (default=(10, 5))
+    - figsize: tamaño de la figura (si ax es None)
     - alpha: transparencia de los puntos
     - s: tamaño de los puntos
-    - thresholds: tuplas con valores guía (default: (-0.33, 0, 0.33))
+    - thresholds: tupla de líneas horizontales guía
     - title: título del gráfico
+    - ax: (opcional) axes de matplotlib para dibujar dentro de un subplot
     """
 
-    point_colors = [colors[c] for c in true_labels]
     y_pred = np.array(y_pred)
+    point_colors = [colors[c] for c in true_labels]
 
-    plt.figure(figsize=figsize)
+    # Si no recibimos ax, creamos la figura y el axis
+    created_figure = False
+    if ax is None:
+        fig, ax = plt.subplots(figsize=figsize)
+        created_figure = True
 
-    # Plot en 1D
-    plt.scatter(
+    # Scatter 1D
+    ax.scatter(
         np.arange(len(y_pred)),
         y_pred,
         c=point_colors,
@@ -69,19 +76,24 @@ def plot_1d_predictions(
         s=s
     )
 
-    # Líneas horizontales (umbrales)
+    # Umbrales horizontales
     for t in thresholds:
         if t == 0:
-            plt.axhline(t, color="black", linestyle="--", linewidth=1)
+            ax.axhline(t, color="black", linestyle="--", linewidth=1)
         else:
-            plt.axhline(t, color="gray", linestyle=":", linewidth=1)
+            ax.axhline(t, color="gray", linestyle=":", linewidth=1)
 
-    # Etiquetas del plot
-    plt.title(title)
-    plt.xlabel("Índice del sample en test")
-    plt.ylabel("Score ideológico (predicción continua)")
+    # Labels
+    ax.set_title(title)
+    ax.set_xlabel("Índice del sample")
+    ax.set_ylabel("Score ideológico (predicción continua)")
 
     # Leyenda manual
     for label, color in colors.items():
-        plt.scatter([], [], c=color, label=label)
-    plt.legend(title="Clase real")
+        ax.scatter([], [], c=color, label=label)
+    ax.legend(title="Clase real")
+
+    # Mostrar sólo si no estamos dentro de un subplot
+    if created_figure:
+        plt.tight_layout()
+        plt.show()
