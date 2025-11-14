@@ -3,6 +3,8 @@
 import numpy as np
 import pandas as pd
 from datasets import Dataset
+from tqdm import tqdm
+
 from transformers import (
     AutoTokenizer,
     AutoModelForSequenceClassification,
@@ -115,11 +117,36 @@ def predict_value(model, tokenizer, text):
 # ------------------------------------------------------------
 # 6. Predicción por lotes
 # ------------------------------------------------------------
-def predict_batch_values(model, tokenizer, texts):
-    inputs = tokenizer(texts, return_tensors="pt", truncation=True, padding=True)
-    with torch.no_grad():
-        logits = model(**inputs).logits
-    return logits.squeeze(-1).cpu().numpy()   # shape: (N,)
+def predict_batch_values(model, tokenizer, texts, batch_size=32, device=None):
+    if isinstance(texts, (pd.Series, np.ndarray)):
+        texts = texts.astype(str).tolist()
+    else:
+        texts = ["" if t is None else str(t) for t in texts]
+
+    if device is None:
+        device = "mps" if torch.backends.mps.is_available() else "cpu"
+
+    model = model.to(device)
+    model.eval()
+    outputs = []
+
+    for i in tqdm(range(0, len(texts), batch_size), desc="Predicting"):
+        batch = texts[i:i+batch_size]  # <- ahora es list[str]
+        inputs = tokenizer(
+            batch,
+            return_tensors="pt",
+            truncation=True,
+            padding=True
+        ).to(device)
+
+        with torch.no_grad():
+            logits = model(**inputs).logits
+
+        # Para regresión: logits shape (batch_size, 1)
+        outputs.append(logits.squeeze(-1).cpu().numpy())
+
+    return np.concatenate(outputs)
+
 
 
 # ------------------------------------------------------------
@@ -149,3 +176,55 @@ def load_lora_regression_model(base_model_name, saved_path):
 
     return tokenizer, model
 
+# ------------------------------------------------------------
+# 9. Otros utils: Political Score Batch
+# ------------------------------------------------------------
+def political_score_batch(texts, batch_size=128, device=None, bert_model=None, tokenizer_bert=None):
+    """Convierte los logits de un modelo bert en un numero real (score)."""
+    if isinstance(texts, (pd.Series, np.ndarray)):
+        texts = texts.astype(str).tolist()
+    else:
+        # por si vienen lists/tuplas/etc. mezcladas con None/NaN
+        texts = ["" if t is None else str(t) for t in texts]
+
+    if device is None:
+        if torch.cuda.is_available():
+            device = "cuda"
+        elif torch.backends.mps.is_available():
+            device = "mps"
+        else:
+            device = "cpu"
+
+    # mover modelo a device
+    model = bert_model.to(device)
+    scores_list = []
+    probs_list = []
+
+    # iterar con tqdm
+    for i in tqdm(range(0, len(texts), batch_size), desc="Computing political scores"):
+        chunk = texts[i:i+batch_size]   # <- ahora es list[str]
+
+        # tokenizar y mover a device
+        inputs = tokenizer_bert(
+            chunk,
+            return_tensors="pt",
+            truncation=True,
+            padding=True
+        ).to(device)
+
+        # forward sin gradientes
+        with torch.no_grad():
+            logits = model(**inputs).logits
+            probs = torch.softmax(logits, dim=-1).cpu().numpy()   # volvemos a CPU aquí
+
+        # score = Right - Left
+        scores = probs[:, 2] - probs[:, 0]
+
+        scores_list.append(scores)
+        probs_list.append(probs)
+
+    # concatenar todos los batches
+    return (
+        np.concatenate(scores_list),
+        np.concatenate(probs_list)
+    )
