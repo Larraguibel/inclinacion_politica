@@ -208,3 +208,6 @@ __marimo__/
 
 data/
 .DS_Store
+
+roberta_lora_regression/
+saved_roberta_regression/
