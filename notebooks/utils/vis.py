@@ -31,7 +31,6 @@ def mae_por_class(y_true, y_pred):
     return results
 
 
-
 def plot_1d_predictions(
     y_pred,
     true_labels,
@@ -48,7 +47,7 @@ def plot_1d_predictions(
 
     Parámetros:
     - y_pred: array-like de predicciones continuas
-    - true_labels: array-like de etiquetas reales ("L", "C", "R")
+    - true_labels: array-like de etiquetas reales ("L", "C", "R" o -1, 0, 1)
     - colors: dict opcional {"L": color, "C": color, "R": color}
     - figsize: tamaño de la figura (si ax es None)
     - alpha: transparencia de los puntos
@@ -58,8 +57,19 @@ def plot_1d_predictions(
     - ax: (opcional) axes de matplotlib para dibujar dentro de un subplot
     """
 
+    # Normalizar etiquetas a "L", "C", "R"
+    labels_arr = np.array(true_labels)
+    num_to_str = {-1: "L", 0: "C", 1: "R"}
+
+    if np.issubdtype(labels_arr.dtype, np.number):
+        # Etiquetas numéricas (-1, 0, 1)
+        labels_str = [num_to_str[int(c)] for c in labels_arr]
+    else:
+        # Ya son strings u objetos; forzamos a str
+        labels_str = [str(c) for c in labels_arr]
+
     y_pred = np.array(y_pred)
-    point_colors = [colors[c] for c in true_labels]
+    point_colors = [colors[c] for c in labels_str]
 
     # Si no recibimos ax, creamos la figura y el axis
     created_figure = False
@@ -93,7 +103,6 @@ def plot_1d_predictions(
         ax.scatter([], [], c=color, label=label)
     ax.legend(title="Clase real")
 
-    # Mostrar sólo si no estamos dentro de un subplot
     if created_figure:
         plt.tight_layout()
         plt.show()
